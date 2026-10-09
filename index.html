@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><title>ZEUS MARKET TERMINAL</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#05070a;color:#c8d3dc;font:13px/1.4 "JetBrains Mono","DejaVu Sans Mono",Consolas,monospace}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:#0b0f14;border-bottom:1px solid #1f2a35}
+h1{margin:0;font-size:16px;color:#ffb000;letter-spacing:2px}.dim{color:#5f7180}.g{color:#22e07a}.r{color:#ff4d5e}.y{color:#ffcc33}.c{color:#4dd2ff}
+.disc{background:#2a1c00;color:#ffcc33;padding:6px 14px;border-bottom:1px solid #4a3500;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px}
+.card{background:#0b0f14;border:1px solid #1f2a35;padding:10px}
+.card h2{margin:0 0 4px;font-size:13px;color:#ffb000;display:flex;justify-content:space-between}
+.big{font-size:24px;font-weight:bold}.row{display:flex;justify-content:space-between}
+canvas{width:100%;height:150px;display:block;margin:6px 0;background:#070a0e;border:1px solid #141c24}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:2px 4px;border-bottom:1px solid #141c24;text-align:left}th{color:#5f7180;font-weight:normal}
+.tag{padding:1px 6px;border-radius:2px;font-weight:bold}.BULLISH{background:#0d3b22;color:#22e07a}.BEARISH{background:#3b0d13;color:#ff4d5e}.NEUTRAL{background:#3b330d;color:#ffcc33}
+.HIGH{color:#ff4d5e;font-weight:bold}.MED{color:#ffcc33;font-weight:bold}.WATCH{color:#4dd2ff}.LOW{color:#5f7180}
+.zone{display:flex;gap:6px;margin:6px 0}.zone div{flex:1;padding:5px;border:1px solid}.bz{border-color:#22e07a!important;background:#062014}.sz{border-color:#ff4d5e!important;background:#200609}
+.act{color:#4dd2ff;margin:4px 0}.exp{color:#8597a5;font-size:11px}
+.wide{grid-column:1/-1}
+</style></head><body>
+<header><h1>▌ZEUS MARKET TERMINAL</h1><span><span id="st" class="dim">loading…</span> · auto-reload 60s · rebuilt ~5 min in market hours</span></header>
+<div class="disc" id="disc">⚠ NOT FINANCIAL ADVICE.</div>
+<div class="grid" id="cards"></div>
+<div class="grid"><div class="card wide"><h2><span>ERRORS / MISPRICING SCANNER</span><span class="dim">ETF-vs-index divergence · overnight gaps · mean-reversion extremes</span></h2>
+<table id="err"></table></div>
+<div class="card wide"><h2><span>ETF QUOTES</span></h2><table id="etf"></table></div></div>
+<script>
+const f=(x,d=2)=>x==null?'—':Number(x).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+function line(cv,series,opts={}){const r=cv.getBoundingClientRect(),dpr=devicePixelRatio||1;cv.width=r.width*dpr;cv.height=r.height*dpr;
+ const x=cv.getContext('2d');x.scale(dpr,dpr);const W=r.width,H=r.height,p=4;let all=[];series.forEach(s=>s.d.forEach(v=>v!=null&&all.push(v)));
+ (opts.hl||[]).forEach(h=>all.push(h.v));if(!all.length){x.fillStyle='#5f7180';x.fillText('no intraday data (market closed)',10,20);return}
+ let mn=Math.min(...all),mx=Math.max(...all);const pad=(mx-mn)*.05||1;mn-=pad;mx+=pad;const n=Math.max(...series.map(s=>s.d.length));
+ const X=i=>p+i*(W-2*p)/(n-1||1),Y=v=>H-p-(v-mn)*(H-2*p)/(mx-mn);
+ (opts.band||[]).forEach(b=>{x.fillStyle=b.c;x.fillRect(0,Y(b.hi),W,Y(b.lo)-Y(b.hi))});
+ (opts.hl||[]).forEach(h=>{x.strokeStyle=h.c;x.setLineDash([3,3]);x.beginPath();x.moveTo(0,Y(h.v));x.lineTo(W,Y(h.v));x.stroke();x.setLineDash([])});
+ series.forEach(s=>{x.strokeStyle=s.c;x.lineWidth=s.w||1;x.beginPath();let st=false;s.d.forEach((v,i)=>{if(v==null)return;st?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));st=true});x.stroke()});
+ x.fillStyle='#5f7180';x.font='10px monospace';x.fillText(f(mx),W-70,11);x.fillText(f(mn),W-70,H-4);if(opts.label)x.fillText(opts.label,6,11)}
+async function load(){try{const d=await (await fetch('data.json?t='+Date.now(),{cache:'no-store'})).json();if(d.error)throw d.error;render(d);
+ document.getElementById('st').innerHTML='data built '+new Date(d.generated).toLocaleString()+' <span class=dim>(data as of '+new Date(d.data['^GSPC'].asof).toLocaleTimeString()+')</span>'}
+ catch(e){document.getElementById('st').innerHTML='<span class=r>error: '+e+'</span>'}}
+function render(d){document.getElementById('disc').textContent='⚠ '+d.disclaimer;const C=document.getElementById('cards');C.innerHTML='';
+ d.groups.forEach((g,k)=>{const r=d.data[g.index],e=d.data[g.etf],cl=r.change>=0?'g':'r';
+ C.insertAdjacentHTML('beforeend',`<div class=card><h2><span>${g.name} <span class=dim>${g.index}</span></span><span class="tag ${r.bias}">${r.bias} ${r.score>0?'+':''}${r.score}</span></h2>
+ <div class=row><span class="big ${cl}">${f(r.price)}</span><span class=${cl}>${r.change>=0?'▲':'▼'} ${f(r.change)} (${f(r.change_pct)}%)</span></div>
+ <div class="row dim"><span>O ${f(r.open)} H ${f(r.day_high)} L ${f(r.day_low)}</span><span>PC ${f(r.prev_close)}</span></div>
+ <canvas id=i${k}></canvas><canvas id=d${k}></canvas>
+ <div class=zone><div class=bz><span class=g>BUY ZONE</span><br>${f(r.buy_zone[0])} – ${f(r.buy_zone[1])}</div><div class=sz><span class=r>SELL ZONE</span><br>${f(r.sell_zone[0])} – ${f(r.sell_zone[1])}</div></div>
+ <div class=act>► ${r.action}</div>
+ <table><tr><th>SMA20</th><td>${f(r.sma20)}</td><th>RSI14</th><td class=${r.rsi>70?'r':r.rsi<30?'g':''}>${f(r.rsi,1)}</td></tr>
+ <tr><th>SMA50</th><td>${f(r.sma50)}</td><th>MACD</th><td class=${r.macd_hist>0?'g':'r'}>${f(r.macd)} / ${f(r.macd_signal)}</td></tr>
+ <tr><th>SMA200</th><td>${f(r.sma200)}</td><th>BB</th><td>${f(r.bb_lower)} – ${f(r.bb_upper)}</td></tr>
+ <tr><th>Support</th><td class=g>${f(r.support[0])}, ${f(r.support[1])}</td><th>Resist.</th><td class=r>${f(r.resistance[0])}, ${f(r.resistance[1])}</td></tr>
+ <tr><th>%B</th><td>${f(r.pct_b)}</td><th>z(20)</th><td>${f(r.zscore20)}</td></tr></table>
+ <div class=exp>${r.explain}</div></div>`);
+ const ci=r.chart_intra;line(document.getElementById('i'+k),[{d:ci.c,c:'#4dd2ff',w:1.5}],{label:'INTRADAY 5m '+(ci.t[0]||'')+'–'+(ci.t[ci.t.length-1]||'')+' ET',hl:[{v:r.prev_close,c:'#ffb000'}]});
+ const cd=r.chart_daily,n=130,sl=a=>a.slice(-n);
+ line(document.getElementById('d'+k),[{d:sl(cd.bbu),c:'#3a4a58'},{d:sl(cd.bbl),c:'#3a4a58'},{d:sl(cd.sma200),c:'#b06cff'},{d:sl(cd.sma50),c:'#ffb000'},{d:sl(cd.sma20),c:'#4dd2ff'},{d:sl(cd.c),c:'#e8eef3',w:1.5}],
+  {label:'DAILY 6M · BB · SMA20/50/200',band:[{lo:r.buy_zone[0],hi:r.buy_zone[1],c:'rgba(34,224,122,.12)'},{lo:r.sell_zone[0],hi:r.sell_zone[1],c:'rgba(255,77,94,.12)'}]})});
+ document.getElementById('err').innerHTML='<tr><th>SEV</th><th>TYPE</th><th>SYMBOL</th><th>READING</th><th>NOTE</th></tr>'+d.errors.map(e=>`<tr><td class=${e.severity}>${e.severity}</td><td>${e.type}</td><td class=c>${e.symbol}</td><td>${e.value}</td><td class=dim>${e.note}</td></tr>`).join('');
+ document.getElementById('etf').innerHTML='<tr><th>ETF</th><th>LAST</th><th>CHG</th><th>RSI</th><th>BIAS</th><th>BUY ZONE</th><th>SELL ZONE</th><th>ACTION</th></tr>'+['SPY','QQQ','DIA','^NDX'].map(s=>{const r=d.data[s];return `<tr><td class=c>${s}</td><td>${f(r.price)}</td><td class=${r.change>=0?'g':'r'}>${f(r.change_pct)}%</td><td>${f(r.rsi,1)}</td><td><span class="tag ${r.bias}">${r.bias}</span></td><td class=g>${f(r.buy_zone[0])}–${f(r.buy_zone[1])}</td><td class=r>${f(r.sell_zone[0])}–${f(r.sell_zone[1])}</td><td class=dim>${r.action}</td></tr>`}).join('')}
+load();setInterval(load,60000);
+</script></body></html>
